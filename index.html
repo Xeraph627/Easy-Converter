@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Easy-Converter · 顺手就能用的转换工具</title>
+    <meta name="description" content="十六进制转 UTF-8 等小巧的本地转换工具，纯前端、不上传数据。" />
+    <link rel="stylesheet" href="assets/app.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234c9aff'/%3E%3Ctext x='16' y='21' font-family='monospace' font-size='13' fill='white' text-anchor='middle'%3E0x%3C/text%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">⇄</div>
+          <div class="brand-text">
+            <strong>Easy-Converter</strong>
+            <small>简单、直接、随手可用</small>
+          </div>
+        </div>
+
+        <div class="search">
+          <input id="search" type="search" placeholder="搜索工具…  Ctrl+K" autocomplete="off" spellcheck="false" />
+        </div>
+
+        <nav class="tool-nav" id="nav"></nav>
+
+        <div class="sidebar-foot" id="sidebarFoot"></div>
+      </aside>
+
+      <main class="main">
+        <div class="topbar">
+          <button type="button" class="icon-btn" id="menuBtn" title="工具列表">☰</button>
+          <div class="path" id="path"></div>
+          <button type="button" class="icon-btn" id="themeBtn" title="切换主题">☀</button>
+        </div>
+        <section class="workspace">
+          <div class="tool" id="tool"></div>
+        </section>
+      </main>
+    </div>
+
+    <input type="file" id="fileInput" accept=".txt,.json,.csv,.log,.md,text/*" hidden />
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <script src="assets/app.js"></script>
+    <!-- 新增转换器时，在这里加一行 script 即可 -->
+    <script src="tools/hex-utf8.js"></script>
+    <script>
+      window.EasyConverter.boot();
+    </script>
+  </body>
+</html>
