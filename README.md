@@ -1,18 +1,32 @@
 # Easy-Converter
 
-一个纯前端的小工具台。打开 `index.html` 就能用，不联网、不上传任何数据，所有转换都在浏览器里完成。
+一个纯前端的小工具台。不联网、不上传任何数据，所有转换都在浏览器里完成。
 
-目前只有一个工具：**十六进制 ↔ UTF-8 文本**。框架是按「以后还要加更多」设计的，加新工具不需要动界面代码。
+## 在线使用
 
-## 用法
+已部署到 GitHub Pages，直接用浏览器打开即可：
 
-双击 `index.html`，或者用任意浏览器打开。
+**<https://xeraph627.github.io/Easy-Converter/>**
 
-- **十六进制 → 文本**：粘贴 `E4 BD A0 E5 A5 BD`、`E4BDA0E5A5BD`、`0xE4 0xBD`、`\xE4\xBD`、`E4,BD,A0` 都能识别，空格、逗号、换行、短横线随意混。
-- **文本 → 十六进制**：输出大小写、分隔符（空格 / 无 / 换行 / `0x` 前缀 / `\x` 前缀 / 逗号）可选。
-- 出错时会指出**第几个字节**有问题、附近是什么内容，而不是丢一句「转换失败」。
+手机上也能用，窄屏会自动变成抽屉式侧栏。收藏这个地址就不用管本地文件了。
+
+## 离线使用
+
+把仓库下载或 `git clone` 到本地，双击 `index.html` 即可，不需要安装依赖，也不需要起服务器。
+
+## 现有的工具
+
+框架是按「以后还要加更多」设计的，加新工具不需要动界面代码。
+
+- **十六进制 ↔ 文本**：粘贴 `E4 BD A0 E5 A5 BD`、`E4BDA0E5A5BD`、`0xE4 0xBD`、`\xE4\xBD`、`E4,BD,A0` 都能识别，空格、逗号、换行、短横线随意混。字符集默认 UTF-8，可切 GBK / Big5 / Shift_JIS / EUC-KR / Latin-1 等，专治老系统的乱码。
+- **URL 编码 / 解码**：百分号编码互转。解码认 `%E4%BD%A0` 这类 UTF-8 序列，可选把 `+` 当空格（表单提交的老习惯），坏的 `%` 序列默认原样保留而不是报错。编码可切换保留范围——「组件」按 `encodeURIComponent` 语义（斜杠也编码），「整条 URL」保留 `:/?&=` 等结构字符。
+
+其他细节：
+
+- 出错时会指出**第几个字节 / 哪个字符**有问题、附近是什么内容，而不是丢一句「转换失败」。
 - 支持拖入 txt 文件、粘贴按钮、复制、导出 txt。
 - 输入内容和选项自动保存，刷新页面不丢。
+- 深色 / 浅色主题切换。
 
 快捷键：
 
@@ -73,7 +87,7 @@ window.EasyConverter.define({
 });
 ```
 
-2. 在 `index.html` 底部按顺序加一行：
+2. 在 `index.html` 底部按顺序加一行（注意要在 `assets/lib/bytes.js` 之后）：
 
 ```html
 <script src="tools/base64.js"></script>
@@ -87,6 +101,24 @@ window.EasyConverter.define({
 - 失败时尽量给 `pos`（出错位置，0 起）和 `near`（附近内容），界面会把它们显示在状态条里。
 - `stats` 是可选的统计信息，显示在输出面板右上角。
 - 只有一个方向时，`dirs` 只写一项，界面上就不会出现方向切换。
+- 需要字节 ↔ 文本转换的，直接用公共层 `EasyConverter.bytes`（见下），不用自己再写一遍。
+- 想让标题、面板名随选项变化，把它们写成函数 `(opts) => string` 即可，改选项时会实时刷新。例如十六进制工具切到 GBK 后，面板名会变成「GBK（GB2312）文本」。
+
+### 公共层：`EasyConverter.bytes`
+
+`assets/lib/bytes.js` 提供字节与字符集的转换，是十六进制工具和 URL 工具共用的底层：
+
+```js
+const B = window.EasyConverter.bytes;
+
+B.decode(bytes, "gbk");            // → { ok:true, text } 或 { ok:false, error, pos?, near? }
+B.encode("你好", "gbk");           // → { ok:true, bytes:[0xC4,0xE3,...] }
+B.CHARSETS;                        // [{id,label}, ...] 可直接喂给 select 的 choices
+B.labelOf("big5");                 // "Big5"
+B.toHex([0x41, 0xff]);             // "41 ff"
+```
+
+UTF-8 是手写解码器，为的是出错时能说清是第几个字节。GBK / Big5 / Shift_JIS / EUC-KR 走平台的 `TextDecoder`，逐位试探确定字符边界；反向编码则在运行时用解码器反查出字节表，所以不需要预置码表，也不额外占体积。
 
 ## 测试
 
@@ -94,21 +126,25 @@ window.EasyConverter.define({
 node test/run.mjs
 ```
 
-测试用 `vm` 加载 `tools/` 里的文件，不需要浏览器、不需要安装依赖。加新工具时照着 `test/run.mjs` 里的写法加断言即可。
+测试用 `vm` 加载 `assets/lib/` 和 `tools/` 里的文件，不需要浏览器、不需要安装依赖。加新工具时照着 `test/run.mjs` 里的写法加断言即可。URL 工具那部分还会和浏览器原生的 `encodeURIComponent` / `encodeURI` 逐字节对照。
 
 ## 目录
 
 ```
-index.html          页面骨架，在这里引入工具脚本
-assets/app.css      样式（深/浅主题）
-assets/app.js       框架：注册、渲染、事件、持久化
-tools/hex-utf8.js   十六进制 ↔ UTF-8
-test/run.mjs        单元测试
+index.html             页面骨架，在这里引入工具脚本
+assets/app.css         样式（深/浅主题）
+assets/app.js          框架：注册、渲染、事件、持久化
+assets/lib/bytes.js    公共层：字节 ↔ 文本、字符集支持
+tools/hex-utf8.js      十六进制 ↔ 文本
+tools/url-encode.js    URL 编码 / 解码
+test/run.mjs           单元测试
 ```
 
-## 说明
+## 部署
 
-UTF-8 解码是手写的，没有直接用 `TextDecoder`，为的是出错时能准确报出是第几个字节、哪一段不合法。宽容模式下坏字节按 U+FFFD 替换，和浏览器的行为一致。
+纯静态站点，没有任何构建步骤。GitHub Pages 直接指向仓库根目录的 `main` 分支即可。
+
+推送到 `main` 后 Pages 需要一两分钟重新构建，然后访问 <https://xeraph627.github.io/Easy-Converter/> 就能看到更新。
 
 ## License
 

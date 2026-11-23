@@ -6,7 +6,7 @@
   "use strict";
 
   const EC = (window.EasyConverter = window.EasyConverter || {});
-  EC.version = "0.1.0";
+  EC.version = "0.2.0";
 
   /* ---------------- 注册表 ---------------- */
 
@@ -220,11 +220,42 @@
 
   /* ---------------- 主渲染 ---------------- */
 
+  /* 标题、说明、面板名可以写成函数 (opts) => string，随选项实时变化 */
+  function resolve(value, opts, fallback) {
+    if (typeof value === "function") {
+      try {
+        return value(opts) || "";
+      } catch {
+        return fallback || "";
+      }
+    }
+    return value != null ? value : fallback || "";
+  }
+
+  function applyLabels() {
+    const tool = state.tool;
+    if (!tool) return;
+    const opts = optsFor(tool);
+    const dir = dirOf();
+    const set = (sel, text) => {
+      const el = $(sel);
+      if (el) el.textContent = text;
+    };
+    const title = resolve(dir.title, opts, tool.title);
+    set("#toolTitle", title);
+    $("#path").innerHTML = `<b>${esc(tool.group)}</b> / ${esc(title)}`;
+    set("#toolDesc", resolve(dir.desc, opts, tool.desc));
+    set("#labelIn", resolve(dir.inputLabel, opts, "输入"));
+    set("#labelOut", resolve(dir.outputLabel, opts, "输出"));
+  }
+
   function render() {
     const tool = state.tool;
     const dirKey = state.dirKey;
     const dir = dirOf();
-    const title = dir.title || tool.title;
+    const opts = optsFor(tool);
+    const title = resolve(dir.title, opts, tool.title);
+    const desc = resolve(dir.desc, opts, tool.desc);
 
     $("#path").innerHTML = `<b>${esc(tool.group)}</b> / ${esc(title)}`;
 
@@ -242,8 +273,8 @@
       <header class="tool-head">
         <div class="tool-icon">${esc(tool.icon)}</div>
         <div class="tool-meta">
-          <h1>${esc(title)}</h1>
-          <p>${esc(dir.desc || tool.desc || "")}</p>
+          <h1 id="toolTitle">${esc(title)}</h1>
+          <p id="toolDesc">${esc(desc)}</p>
         </div>
       </header>
       <div class="toolbar">
@@ -256,7 +287,7 @@
       <div class="panes">
         <div class="pane">
           <div class="pane-head">
-            <span class="pane-label">${esc(dir.inputLabel || "输入")}</span>
+            <span class="pane-label" id="labelIn">${esc(resolve(dir.inputLabel, opts, "输入"))}</span>
             <div class="pane-tools">
               <span class="stat" id="inStat"></span>
               <button type="button" class="btn tiny" data-act="paste">粘贴</button>
@@ -268,7 +299,7 @@
         <div class="pane-mid"><button type="button" class="swap-btn" id="swapBtn" title="${tool.dirs.length > 1 ? "交换方向，把输出放回输入" : "把输出放回输入"}">⇄</button></div>
         <div class="pane">
           <div class="pane-head">
-            <span class="pane-label">${esc(dir.outputLabel || "输出")}</span>
+            <span class="pane-label" id="labelOut">${esc(resolve(dir.outputLabel, opts, "输出"))}</span>
             <div class="pane-tools">
               <span class="stat" id="outStat"></span>
               <button type="button" class="btn tiny" data-act="copy">复制</button>
@@ -474,6 +505,7 @@
       }
       store.opts[tool.id] = Object.assign(optsFor(tool), { [o.key]: val });
       save();
+      applyLabels();
       convert();
       return true;
     }
