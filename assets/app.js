@@ -6,7 +6,7 @@
   "use strict";
 
   const EC = (window.EasyConverter = window.EasyConverter || {});
-  EC.version = "0.2.0";
+  EC.version = "0.3.0";
 
   /* ---------------- 注册表 ---------------- */
 
@@ -193,8 +193,18 @@
 
   function optionsHtml(tool) {
     const dirKey = state.dirKey;
+    const opts = optsFor(tool);
     const parts = tool.options
       .filter((o) => !o.dirs || o.dirs.includes(dirKey))
+      .filter((o) => {
+        // showIf 让选项依赖其它选项的值，比如「大写」只在十六进制下出现
+        if (typeof o.showIf !== "function") return true;
+        try {
+          return !!o.showIf(opts);
+        } catch {
+          return true;
+        }
+      })
       .map((o) => {
         const id = `opt-${tool.id}-${o.key}`;
         if (o.type === "select") {
@@ -293,7 +303,7 @@
               <button type="button" class="btn tiny" data-act="paste">粘贴</button>
             </div>
           </div>
-          <textarea id="input" spellcheck="false" autocomplete="off" placeholder="${esc(dir.placeholder || tool.placeholder || "")}"></textarea>
+          <textarea id="input" spellcheck="false" autocomplete="off" placeholder="${esc(currentPlaceholder())}"></textarea>
           <div class="dropzone" id="dropIn">拖入文本文件，或点击选择</div>
         </div>
         <div class="pane-mid"><button type="button" class="swap-btn" id="swapBtn" title="${tool.dirs.length > 1 ? "交换方向，把输出放回输入" : "把输出放回输入"}">⇄</button></div>
@@ -313,10 +323,11 @@
 
     const input = $("#input");
     const saved = store.inputs[inputKey()];
+    const seed = currentSample();
     if (saved != null) {
       input.value = saved;
-    } else if (!store.seeded[`${tool.id}:${dirKey}`] && dir.sample !== undefined) {
-      input.value = dir.sample;
+    } else if (!store.seeded[`${tool.id}:${dirKey}`] && seed != null) {
+      input.value = seed;
     }
     store.seeded[`${tool.id}:${dirKey}`] = true;
     convert();
@@ -338,6 +349,25 @@
     const bar = $("#status");
     bar.className = "statusbar" + (kind ? " " + kind : "");
     bar.innerHTML = html;
+  }
+
+  /* 输入框提示语也支持函数形式，随选项变化 */
+  function currentPlaceholder() {
+    const tool = state.tool;
+    if (!tool) return "";
+    const dir = dirOf();
+    const opts = optsFor(tool);
+    return resolve(dir.placeholder != null ? dir.placeholder : tool.placeholder, opts, "");
+  }
+
+  /* 示例值同样支持函数，切进制时示例跟着换 */
+  function currentSample() {
+    const tool = state.tool;
+    if (!tool) return null;
+    const dir = dirOf();
+    const opts = optsFor(tool);
+    const raw = dir.sample != null ? dir.sample : tool.sample;
+    return typeof raw === "function" ? raw(opts) : raw;
   }
 
   function convert() {
@@ -494,6 +524,7 @@
       const tool = state.tool;
       const o = tool.options.find((x) => x.key === t.dataset.opt);
       if (!o) return false;
+      const prev = optsFor(tool);
       let val;
       if (o.type === "select") {
         const picked = o.choices[Number(t.value)] || o.choices[0];
@@ -503,11 +534,53 @@
       } else {
         val = !!t.checked;
       }
-      store.opts[tool.id] = Object.assign(optsFor(tool), { [o.key]: val });
+
+      const next = Object.assign({}, prev, { [o.key]: val });
+      store.opts[tool.id] = next;
       save();
+
+      // 工具可以借这次变化顺手改写输入（例如切换进制时换算现有内容）
+      if (typeof tool.onOptionChange === "function") {
+        try {
+          const input = $("#input");
+          const text = input ? input.value : "";
+          const replaced = tool.onOptionChange({
+            key: o.key,
+            prev,
+            next: optsFor(tool),
+            text,
+            dir: state.dirKey,
+          });
+          if (typeof replaced === "string" && replaced !== text) {
+            input.value = replaced;
+            saveInput();
+          }
+        } catch (err) {
+          console.error("[Easy-Converter] onOptionChange 出错：", err);
+        }
+      }
+
+      // 选项变化可能让某些控件显隐，重建一次工具栏比逐个比对稳妥
+      refreshOptions();
       applyLabels();
       convert();
       return true;
+    }
+
+    /* 只重建工具栏里的选项区，不打断输入框焦点 */
+    function refreshOptions() {
+      const wrap = toolRoot.querySelector(".options");
+      const html = optionsHtml(state.tool);
+      if (wrap) {
+        if (html) wrap.outerHTML = html;
+        else wrap.remove();
+      } else if (html) {
+        const spacer = toolRoot.querySelector(".toolbar-spacer");
+        if (spacer) spacer.insertAdjacentHTML("beforebegin", html);
+      }
+      toolRoot.querySelectorAll("textarea").forEach((ta) => {
+        if (ta.id === "input") ta.placeholder = currentPlaceholder();
+      });
     }
 
     toolRoot.addEventListener("input", (e) => {
@@ -544,8 +617,7 @@
         convert();
         input.focus();
       } else if (act === "sample") {
-        const dir = dirOf();
-        const sample = dir.sample != null ? dir.sample : state.tool.sample;
+        const sample = currentSample();
         if (sample == null) return toast("这个工具没有示例");
         const input = $("#input");
         input.value = sample;

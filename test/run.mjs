@@ -54,13 +54,14 @@ function group(title) {
   console.log(`\n· ${title}`);
 }
 
-/* ================= 十六进制 ↔ UTF-8 ================= */
-group("十六进制 ↔ UTF-8");
+/* ================= 进制 ↔ 文本 ================= */
+group("进制 ↔ 文本（十六进制）");
 checkTrue("注册了工具", registry.length >= 1, `实际 ${registry.length} 个`);
 const t = tool("hex-utf8");
 
-const D = (s, o = {}) => t.decode(s, { replaceInvalid: false, stripBom: true, charset: "utf-8", ...o });
-const E = (s, o = {}) => t.encode(s, { upper: true, sep: "space", charset: "utf-8", ...o });
+const D = (s, o = {}) =>
+  t.decode(s, { replaceInvalid: false, stripBom: true, charset: "utf-8", radix: "16", ...o });
+const E = (s, o = {}) => t.encode(s, { upper: true, sep: "space", charset: "utf-8", radix: "16", ...o });
 
 check("空格分隔", D("48 65 6C 6C 6F").text, "Hello");
 check("无分隔", D("48656C6C6F").text, "Hello");
@@ -82,8 +83,8 @@ check("BOM 去掉", D("EF BB BF 41").text, "A");
 check("BOM 保留", D("EF BB BF 41", { stripBom: false }).text, "\uFEFFA");
 check("空行不影响", D("\n\n48 65\n\n").text, "He");
 
-checkTrue("奇数位报错", D("4 8 6").ok === false);
-checkTrue("奇数位报错文案", /奇数/.test(D("486").error || ""), D("486").error);
+checkTrue("位数不足报错", D("4 8 6").ok === false);
+checkTrue("位数不足报错文案", /每 2 位表示一个字节/.test(D("486").error || ""), D("486").error);
 checkTrue("非法起始字节报错", D("FF").ok === false);
 checkTrue("续字节错误报错", D("E4 41").ok === false);
 checkTrue("续字节错误指位置", D("E4 41").pos === 0, String(D("E4 41").pos));
@@ -120,6 +121,112 @@ check("Latin-1 往返", D(E("café", { charset: "iso-8859-1" }).text, { charset:
 checkTrue("GBK 坏字节报错", D("FF FF", { charset: "gbk" }).ok === false, JSON.stringify(D("FF FF", { charset: "gbk" })));
 checkTrue("GBK 遇到 emoji 报错", E("你好🌊", { charset: "gbk" }).ok === false);
 checkTrue("GBK emoji 报错带字符", /🌊/.test(E("你好🌊", { charset: "gbk" }).error || ""), E("你好🌊", { charset: "gbk" }).error);
+
+/* ================= 二进制 / 四进制 / 八进制 ================= */
+group("二进制 / 四进制 / 八进制");
+const R = (s, radix, o = {}) => D(s, { radix, ...o });
+const W = (s, radix, o = {}) => E(s, { radix, ...o });
+
+/* 二进制：每字节 8 位 */
+check("二进制解码 Hello", R("01001000 01100101 01101100 01101100 01101111", "2").text, "Hello");
+check("二进制无分隔", R("0100100001100101", "2").text, "He");
+check("二进制 0b 前缀", R("0b01001000 0b01100101", "2").text, "He");
+check("二进制编码 Hello", W("Hello", "2").text, "01001000 01100101 01101100 01101100 01101111");
+check("二进制中文", R(W("你好", "2").text, "2").text, "你好");
+check("二进制补零", W("A", "2").text, "01000001");
+check("二进制换行分隔", W("Hi", "2", { sep: "newline" }).text, "01001000\n01101001");
+check("二进制连写", W("Hi", "2", { sep: "none" }).text, "0100100001101001");
+
+/* 四进制：每字节 4 位 */
+check("四进制编码 Hello", W("Hello", "4").text, "1020 1211 1230 1230 1233");
+check("四进制解码", R("1020 1211 1230 1230 1233", "4").text, "Hello");
+check("四进制中文往返", R(W("你好，世界", "4").text, "4").text, "你好，世界");
+check("四进制无分隔", W("Hi", "4", { sep: "none" }).text, "10201221");
+
+/* 八进制：每字节 3 位（od 风格） */
+check("八进制编码 A", W("A", "8").text, "101");
+check("八进制编码 Hello", W("Hi", "8").text, "110 151");
+check("八进制解码", R("110 151", "8").text, "Hi");
+check("八进制无分隔", W("Hi", "8", { sep: "none" }).text, "110151");
+check("八进制中文往返", R(W("你好，世界", "8").text, "8").text, "你好，世界");
+check("八进制 0o 前缀", R("0o110 0o151", "8").text, "Hi");
+check("八进制 emoji", R(W("🌊", "8").text, "8").text, "🌊");
+
+/* 前缀与分隔符混写 */
+check("0x 前缀可省略", R("0x48 48", "16").text, "HH");
+check("0x 与 \\x 混写", R("0x48 \\x48", "16").text, "HH");
+check("0b 前缀可省略", R("0b01001000 01001000", "2").text, "HH");
+check("0o 前缀可省略", R("0o110 110", "8").text, "HH");
+check("0o 前缀不被当成八进制外内容", R("0o110", "8").text, "H");
+check("短横线分隔", R("01001000-01100101", "2").text, "He");
+check("逗号分隔", R("01001000,01100101", "2").text, "He");
+check("混合分隔符", R("01001000, 01100101\n01101100", "2").text, "Hel");
+
+/* 带前缀输出 */
+check("二进制带前缀", W("Hi", "2", { sep: "0x-with-space" }).text, "0b01001000 0b01101001");
+check("八进制带前缀", W("Hi", "8", { sep: "0x-with-space" }).text, "0o110 0o151");
+check("十六进制带前缀", W("Hi", "16", { sep: "0x-with-space" }).text, "0x48 0x69");
+check("非十六进制退化为空格", W("Hi", "2", { sep: "slash-x" }).text, "01001000 01101001");
+
+/* 报错 */
+checkTrue("二进制位数不足", R("0100100", "2").ok === false);
+checkTrue("二进制位数不足文案", /每 8 位表示一个字节/.test(R("0100100", "2").error || ""), R("0100100", "2").error);
+checkTrue("四进制位数不足", R("102", "4").ok === false);
+checkTrue("八进制位数不足", R("1101", "8").ok === false);
+checkTrue("二进制非法数字", R("01001002", "2").ok === false);
+checkTrue("八进制非法数字 8", R("008 009", "8").ok === false);
+checkTrue("四进制非法数字 4", R("1020 1234", "4").ok === false);
+checkTrue("空输入报错", R("   ", "2").ok === false);
+
+/* 各进制之间互相换算都回到同一批字节 */
+for (const radix of ["2", "4", "8", "16"]) {
+  for (const text of ["Hello", "你好", "🌊🐳", "a b c"]) {
+    const enc = W(text, radix).text;
+    check(`${radix} 进制往返 ${JSON.stringify(text)}`, R(enc, radix).text, text);
+  }
+}
+
+/* 切换进制时换算现有输入 */
+const swap = t.onOptionChange;
+checkTrue("有进制换算钩子", typeof swap === "function");
+const swapped = swap({
+  key: "radix",
+  prev: { radix: "16", charset: "utf-8" },
+  next: { radix: "2", charset: "utf-8" },
+  text: "48 65",
+  dir: "decode",
+});
+check("十六进制转二进制", swapped, "01001000 01100101");
+const swappedBack = swap({
+  key: "radix",
+  prev: { radix: "2", charset: "utf-8" },
+  next: { radix: "16", charset: "utf-8" },
+  text: "01001000 01100101",
+  dir: "decode",
+});
+check("二进制转十六进制", swappedBack, "48 65");
+check("换算到八进制", swap({
+  key: "radix", prev: { radix: "16" }, next: { radix: "8" }, text: "48 65", dir: "decode",
+}), "110 145");
+checkTrue("编码方向不换算", swap({
+  key: "radix", prev: { radix: "16" }, next: { radix: "2" }, text: "你好", dir: "encode",
+}) === null);
+checkTrue("改别的选项不换算", swap({
+  key: "charset", prev: { radix: "16" }, next: { radix: "16" }, text: "48", dir: "decode",
+}) === null);
+checkTrue("坏输入不换算", swap({
+  key: "radix", prev: { radix: "16" }, next: { radix: "2" }, text: "486", dir: "decode",
+}) === null);
+
+/* 字符集与进制组合 */
+check("GBK + 八进制", R(W("你好", "8", { charset: "gbk" }).text, "8", { charset: "gbk" }).text, "你好");
+check("GBK + 二进制", R(W("你好", "2", { charset: "gbk" }).text, "2", { charset: "gbk" }).text, "你好");
+
+/* 进制名称与标签 */
+checkTrue("标题跟随进制", /二进制/.test(t.dirs[0].title({ radix: "2", charset: "utf-8" })), t.dirs[0].title({ radix: "2", charset: "utf-8" }));
+checkTrue("面板名跟随进制", /八进制/.test(t.dirs[1].outputLabel({ radix: "8", charset: "utf-8" })), t.dirs[1].outputLabel({ radix: "8", charset: "utf-8" }));
+check("示例跟随进制", t.dirs[0].sample({ radix: "16", charset: "utf-8" }), "E4 BD A0 E5 A5 BD EF BC 8C E4 B8 96 E7 95 8C");
+checkTrue("二进制示例是 0/1", /^[01 ]+$/.test(t.dirs[0].sample({ radix: "2", charset: "utf-8" })), t.dirs[0].sample({ radix: "2", charset: "utf-8" }));
 
 /* ================= URL 编码 / 解码 ================= */
 group("URL 编码 / 解码");
