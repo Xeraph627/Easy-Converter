@@ -124,6 +124,11 @@ B.toHex([0x41, 0xff]);             // "41 ff"
 
 UTF-8 是手写解码器，为的是出错时能说清是第几个字节。GBK / Big5 / Shift_JIS / EUC-KR 走平台的 `TextDecoder`，逐位试探确定字符边界；反向编码则在运行时用解码器反查出字节表，所以不需要预置码表，也不额外占体积。
 
+## 参与开发
+
+- 想贡献代码？看 [CONTRIBUTING.md](CONTRIBUTING.md)——提交流程、测试要求、代码风格都在那。
+- 在本仓库里工作的 AI Agent？看 [AGENTS.md](AGENTS.md)——架构要点、框架钩子、常见的坑。
+
 ## 测试
 
 ```bash
@@ -142,6 +147,8 @@ assets/lib/bytes.js    公共层：字节 ↔ 文本、字符集支持
 tools/hex-utf8.js      进制（二/四/八/十六）↔ 文本
 tools/url-encode.js    URL 编码 / 解码
 test/run.mjs           单元测试
+CONTRIBUTING.md        贡献指南
+AGENTS.md              Agent 开发须知
 ```
 
 ## 部署
